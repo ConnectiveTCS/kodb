@@ -240,35 +240,27 @@ class SpeakerController extends Controller
             // Save original headers for debugging
             $originalHeaders = $header;
 
-            // Column mapping - handle common variations in header names
-            $columnMap = [
-                'first_name' => ['first name', 'firstname', 'fname', 'first', 'given name', 'givenname', 'name', 'full name', 'fullname'],
-                'last_name' => ['last name', 'lastname', 'lname', 'last', 'surname', 'family name', 'familyname'],
-                'email' => ['email address', 'emailaddress', 'e-mail', 'e mail', 'mail'],
-                'phone' => ['phone number', 'phonenumber', 'telephone', 'tel', 'mobile', 'cell', 'cellphone'],
-                'company' => ['company name', 'companyname', 'employer', 'organization', 'organisation', 'organization name', 'organisation name'],
-                'job_title' => ['job title', 'jobtitle', 'title', 'position', 'role'],
-                'industry' => ['sector', 'field', 'business'],
-                'cv_resume' => ['cv', 'resume', 'curriculum vitae'],
+            // Specific column mapping for this CSV format
+            $csvMap = [
+                'full name' => 'first_name', // Will handle splitting later
+                'area code' => 'area_code', // Will combine with phone number later
+                'phone number' => 'phone',
+                'email' => 'email',
+                'skills' => 'bio', // Store skills in bio field
+                'organization name' => 'company',
+                'attach cv (pdf only)' => 'cv_resume',
+                'attach profile photo' => 'photo',
             ];
 
-            // Convert headers to lowercase for case-insensitive comparison
-            $header = array_map('trim', $header);
-            $header = array_map('strtolower', $header);
+            // Convert headers to lowercase and trim for matching
+            $headerLower = array_map('trim', $header);
+            $headerLower = array_map('strtolower', $headerLower);
 
-            // Create a new header array that maps to our expected column names
-            $mappedHeader = [];
-            foreach ($header as $index => $columnName) {
-                $mapped = false;
-                foreach ($columnMap as $standardColumn => $variations) {
-                    if ($columnName === strtolower($standardColumn) || in_array($columnName, $variations)) {
-                        $mappedHeader[$index] = $standardColumn;
-                        $mapped = true;
-                        break;
-                    }
-                }
-                if (!$mapped) {
-                    $mappedHeader[$index] = $columnName; // Keep original if no mapping
+            // Map CSV header indices to our field names
+            $mappedIndices = [];
+            foreach ($headerLower as $index => $colName) {
+                if (isset($csvMap[$colName])) {
+                    $mappedIndices[$index] = $csvMap[$colName];
                 }
             }
 
@@ -279,12 +271,13 @@ class SpeakerController extends Controller
             
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                 $rowNumber++;
+
                 // Skip if row doesn't have enough columns
-                if (count($row) < count($header)) {
+                if (count($row) < count($mappedIndices)) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
                         'reason' => 'Row has insufficient columns',
-                        'data' => implode(', ', $row)
+                        'data' => implode(', ', array_slice($row, 0, 3)) . '...'
                     ];
                     $skipCount++;
                     continue;
@@ -292,33 +285,18 @@ class SpeakerController extends Controller
 
                 // Create data array with mapped column names
                 $data = [];
-                foreach ($row as $index => $value) {
-                    if (isset($mappedHeader[$index])) {
-                        $data[$mappedHeader[$index]] = trim($value);
+                foreach ($mappedIndices as $index => $fieldName) {
+                    if (isset($row[$index])) {
+                        $data[$fieldName] = trim($row[$index]);
                     }
                 }
 
-                // Check for required fields after mapping
-                if (empty($data['first_name']) && empty($data['email'])) {
-                    // Try to extract a name if we have a combined name field
-                    if (!empty($data['name']) || !empty($data['fullname']) || !empty($data['full name'])) {
-                        $fullNameValue = $data['name'] ?? $data['fullname'] ?? $data['full name'];
-                        $nameParts = explode(' ', $fullNameValue);
-                        if (count($nameParts) >= 2) {
-                            $data['first_name'] = $nameParts[0];
-                            $data['last_name'] = end($nameParts);
-                        } else {
-                            $data['first_name'] = $fullNameValue;
-                        }
-                    }
-                }
-
-                // Validate required fields
+                // Handle required fields
                 if (empty($data['first_name'])) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
-                        'reason' => 'Missing required field: first_name',
-                        'data' => 'Headers found: ' . implode(', ', array_keys($data))
+                        'reason' => 'Missing required field: Full Name',
+                        'data' => 'Email: ' . ($data['email'] ?? 'N/A')
                     ];
                     $skipCount++;
                     continue;
@@ -327,7 +305,7 @@ class SpeakerController extends Controller
                 if (empty($data['email'])) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
-                        'reason' => 'Missing required field: email',
+                        'reason' => 'Missing required field: Email',
                         'data' => 'Name: ' . $data['first_name']
                     ];
                     $skipCount++;
@@ -345,42 +323,98 @@ class SpeakerController extends Controller
                     continue;
                 }
 
-                // Process the name if last_name is not provided
-                if (empty($data['last_name'])) {
-                    $fullName = explode(' ', $data['first_name']);
-                    $count = count($fullName);
+                // Process full name into first and last name
+                $fullNameParts = explode(' ', $data['first_name']);
+                $lastName = '';
 
-                    if ($count >= 2 && preg_match('/^Al/i', $fullName[$count - 2])) {
-                        // If second last word starts with "Al" (case insensitive), join it with the last name
-                        $lastName = $fullName[$count - 2] . ' ' . $fullName[$count - 1];
-                        array_pop($fullName);
-                        array_pop($fullName);
-                    } else if ($count >= 2) {
-                        // Otherwise just use last word as last name
-                        $lastName = array_pop($fullName);
+                if (count($fullNameParts) > 1) {
+                    // Extract last name(s)
+                    // Handle Arabic names with Al/Al-/etc.
+                    $count = count($fullNameParts);
+
+                    if ($count >= 2 && preg_match('/^(?:Al|Al-|El|El-|Bin|Ibn)/i', $fullNameParts[$count - 2])) {
+                        // If second last word is a prefix like 'Al', keep it with the last name
+                        $lastName = $fullNameParts[$count - 2] . ' ' . $fullNameParts[$count - 1];
+                        array_splice($fullNameParts, -2, 2);
                     } else {
-                        $lastName = ''; // Default empty last name if only one word
+                        $lastName = array_pop($fullNameParts);
                     }
 
-                    $firstName = implode(' ', $fullName);
+                    $firstName = implode(' ', $fullNameParts);
+                } else {
+                    $firstName = $data['first_name'];
+                    $lastName = ''; // Default empty last name
+                }
 
-                    // Update the data array
-                    $data['first_name'] = $firstName ?: $data['first_name']; // Fallback to original if empty
-                    $data['last_name'] = $lastName;
+                // Combine area code and phone number if both exist
+                $phone = '';
+                if (!empty($data['area_code']) && !empty($data['phone'])) {
+                    // Remove any plus sign from area code if it exists
+                    $areaCode = trim($data['area_code'], '+');
+                    $phone = '+' . $areaCode . $data['phone'];
+                } elseif (!empty($data['phone'])) {
+                    $phone = $data['phone'];
+                }
+
+                // Fix URLs - replace escaped slashes with normal slashes
+                $cvUrl = !empty($data['cv_resume']) ? str_replace('\\/', '/', $data['cv_resume']) : null;
+                $photoUrl = !empty($data['photo']) ? str_replace('\\/', '/', $data['photo']) : null;
+
+                // Process the CV and photo files if URLs are provided
+                $cvFilename = null;
+                $photoFilename = null;
+
+                if ($cvUrl) {
+                    try {
+                        $cvContent = @file_get_contents($cvUrl);
+                        if ($cvContent !== false) {
+                            $cvFilename = time() . '_' . basename($cvUrl);
+                            $cvPath = public_path('uploads/cv');
+
+                            if (!file_exists($cvPath)) {
+                                mkdir($cvPath, 0755, true);
+                            }
+
+                            file_put_contents($cvPath . '/' . $cvFilename, $cvContent);
+                        }
+                    } catch (\Exception $e) {
+                        // If CV download fails, just log it and continue
+                        $cvFilename = null;
+                    }
+                }
+
+                if ($photoUrl) {
+                    try {
+                        $photoContent = @file_get_contents($photoUrl);
+                        if ($photoContent !== false) {
+                            $photoFilename = time() . '_' . basename($photoUrl);
+                            $photoPath = public_path('images/speakers');
+
+                            if (!file_exists($photoPath)) {
+                                mkdir($photoPath, 0755, true);
+                            }
+
+                            file_put_contents($photoPath . '/' . $photoFilename, $photoContent);
+                        }
+                    } catch (\Exception $e) {
+                        // If photo download fails, just log it and continue
+                        $photoFilename = null;
+                    }
                 }
                 
                 // Create speaker
                 Speaker::create([
                     'user_id' => Auth::id(),
-                    'first_name' => $data['first_name'],
-                    'last_name' => $data['last_name'] ?? '',
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
                     'email' => $data['email'],
-                    'phone' => $data['phone'] ?? null,
+                    'phone' => $phone,
                     'company' => $data['company'] ?? null,
-                    'job_title' => $data['job_title'] ?? null,
-                    'bio' => $data['bio'] ?? null,
-                    'industry' => $data['industry'] ?? null,
-                    'photo' => null,
+                    'job_title' => null, // Not available in this CSV
+                    'bio' => $data['bio'] ?? null, // Skills stored in bio
+                    'industry' => null, // Not available in this CSV
+                    'photo' => $photoFilename,
+                    'cv_resume' => $cvFilename,
                 ]);
                 
                 $successCount++;
@@ -402,7 +436,15 @@ class SpeakerController extends Controller
                 'skip_count' => $skipCount,
                 'skip_reasons' => $skipReasons,
                 'original_headers' => $originalHeaders,
-                'mapped_headers' => $mappedHeader
+                'mapped_fields' => array_filter([
+                    'Full Name' => 'first_name & last_name',
+                    'Area Code + Phone Number' => 'phone',
+                    'Email' => 'email',
+                    'Skills' => 'bio',
+                    'Organization Name' => 'company',
+                    'Attach CV (PDF Only)' => 'cv_resume',
+                    'Attach Profile Photo' => 'photo',
+                ]),
             ]);
             
             return redirect()->route('speakers.index')

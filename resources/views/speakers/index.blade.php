@@ -368,8 +368,32 @@
                                 <div class="bg-gray-50 p-3 rounded-lg text-sm">
                                     <p><strong>Headers found:</strong> {{ implode(', ', session('import_results')['original_headers']) }}</p>
                                     <p class="mt-1 text-xs text-gray-500">
-                                        Required columns: "first_name" (or "First Name", "Name", etc.) and "email" (or "Email Address", etc.)
+                                        Required columns: "Full Name" (or "Name", etc.) and "Email"
                                     </p>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if(isset(session('import_results')['mapped_fields']))
+                            <div class="mb-4">
+                                <h4 class="font-medium text-gray-900 mb-2">Field Mapping</h4>
+                                <div class="bg-gray-50 p-3 rounded-lg text-sm">
+                                    <table class="w-full text-left">
+                                        <thead>
+                                            <tr>
+                                                <th class="font-semibold">CSV Field</th>
+                                                <th class="font-semibold">Maps To</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach(session('import_results')['mapped_fields'] as $csvField => $dbField)
+                                                <tr>
+                                                    <td>{{ $csvField }}</td>
+                                                    <td>{{ $dbField }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         @endif

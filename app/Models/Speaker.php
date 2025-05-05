@@ -20,6 +20,7 @@ class Speaker extends Model
         'job_title',
         'bio',
         'industry',
+        'cv_resume',
     ];
     public function user()
     {
