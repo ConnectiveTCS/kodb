@@ -221,24 +221,67 @@
             
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
+            
+            // Log the target endpoint for debugging
+            console.log('Sending request to: /api/generate-bio');
 
             try {
+                // First check if the API is accessible
+                try {
+                    const pingResponse = await fetch('/api/ping', { 
+                        method: 'HEAD',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+                    
+                    if (!pingResponse.ok) {
+                        throw new Error(`API connection check failed with status: ${pingResponse.status}`);
+                    }
+                } catch (pingError) {
+                    console.error('API connectivity test failed:', pingError);
+                    // Continue anyway, but log the error
+                }
+                
                 const response = await fetch('/api/generate-bio', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },
                     body: JSON.stringify(data),
+                    // Add timeout to prevent hanging requests
+                    signal: AbortSignal.timeout(60000) // 60 second timeout
                 });
 
                 const result = await response.json();
                 bioOutput.classList.remove('hidden');
-                document.getElementById('bioContent').textContent = result.bio;
+                
+                if (response.ok) {
+                    document.getElementById('bioContent').textContent = result.bio;
+                } else {
+                    console.error('Server returned an error:', result);
+                    document.getElementById('bioContent').textContent = 
+                        'Error: ' + (result.error || 'Failed to generate bio. Please try again.');
+                }
             } catch (error) {
                 console.error('Error generating bio:', error);
-                document.getElementById('bioContent').textContent = 'An error occurred while generating the bio. Please try again.';
                 bioOutput.classList.remove('hidden');
+                
+                let errorMessage = 'Network error while generating the bio. ';
+                
+                // Provide more specific error information when possible
+                if (error.name === 'AbortError') {
+                    errorMessage += 'The request timed out. ';
+                } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Could not connect to the API server. ';
+                } else if (error.message) {
+                    errorMessage += `Error details: ${error.message}. `;
+                }
+                
+                errorMessage += 'Please check your connection and try again.';
+                document.getElementById('bioContent').textContent = errorMessage;
             } finally {
                 document.getElementById('generateBioSubmit').textContent = 'Generate Bio';
                 document.getElementById('generateBioSubmit').disabled = false;
