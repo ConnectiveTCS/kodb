@@ -12,6 +12,15 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+
+// Public routes for speaker self-update
+Route::get('/speakers/edit/{token}', [SpeakerController::class, 'editWithToken'])
+    ->name('speakers.edit-with-token');
+Route::post('/speakers/update/{token}', [SpeakerController::class, 'updateWithToken'])
+    ->name('speakers.update-with-token');
+Route::get('/speakers/thank-you', [SpeakerController::class, 'thankYou'])
+    ->name('speakers.thank-you');
+
 // Webhook route from SpeakerController
 Route::post('/webhook', [SpeakerController::class, 'webhook'])->name('webhook');
 
@@ -36,13 +45,5 @@ Route::middleware('auth')->group(function () {
     Route::post('/speakers/{speaker}/send-update-link', [SpeakerController::class, 'sendUpdateLink'])
         ->name('speakers.send-update-link');
 });
-
-// Public routes for speaker self-update
-Route::get('/speakers/edit/{token}', [SpeakerController::class, 'editWithToken'])
-    ->name('speakers.edit-with-token');
-Route::post('/speakers/update/{token}', [SpeakerController::class, 'updateWithToken'])
-    ->name('speakers.update-with-token');
-Route::get('/speakers/thank-you', [SpeakerController::class, 'thankYou'])
-    ->name('speakers.thank-you');
 
 require __DIR__ . '/auth.php';

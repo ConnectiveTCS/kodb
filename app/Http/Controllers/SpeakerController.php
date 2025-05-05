@@ -93,8 +93,8 @@ class SpeakerController extends Controller
             'bio' => 'nullable',
             'industry' => 'nullable',
             //cv
-            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
-            'photo' => 'nullable|image|max:2048',
+            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:5048',
+            'photo' => 'nullable|image|mimes:webp,png,jpg,gif,avif|max:5048',
         ]);
 
         // Prepare data for speaker creation
@@ -151,8 +151,8 @@ class SpeakerController extends Controller
             'bio' => 'nullable',
             'industry' => 'nullable',
             //cv
-            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
-            'photo' => 'nullable|image|max:2048',
+            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:5048',
+            'photo' => 'nullable|image|mimes:webp,png,jpg,gif,avif|max:5048',
         ]);
 
         $speaker = Speaker::findOrFail($id);
