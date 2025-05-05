@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SpeakerBioController;
 use App\Http\Controllers\SpeakerController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -20,6 +22,7 @@ Route::post('/speakers/update/{token}', [SpeakerController::class, 'updateWithTo
     ->name('speakers.update-with-token');
 Route::get('/speakers/thank-you', [SpeakerController::class, 'thankYou'])
     ->name('speakers.thank-you');
+Route::post('/generate-bio', [SpeakerBioController::class, 'generateBio']);
 
 // Webhook route from SpeakerController
 Route::post('/webhook', [SpeakerController::class, 'webhook'])->name('webhook');

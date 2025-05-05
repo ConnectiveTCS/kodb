@@ -70,6 +70,7 @@
                                 <div class="flex flex-col mb-4 col-span-4">
                                     <label for="bio" class="text-sm font-medium text-gray-700">Bio</label>
                                     <textarea id="bio" name="bio" rows="4" class="border border-gray-300 rounded-md p-2">{{ $speaker->bio }}</textarea>
+                                    <button type="button" id="generateBioBtn" class="mt-2 bg-green-500 hover:bg-green-400 text-white py-1 px-2 rounded-md shadow-md">Generate with AI</button>
                                 </div>
                                 
                                 @if($speaker->cv_resume)
@@ -95,6 +96,77 @@
         </main>
     </div>
 
+    <!-- Bio Generation Modal -->
+    <div id="bioModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b p-4 sticky top-0 bg-white rounded-t-lg z-10">
+                <h3 class="text-lg font-semibold">Generate Speaker Bio with AI</h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow">
+                <form method="POST" action="/api/generate-bio" id="bioForm" class="space-y-4">
+                    @csrf
+                    <div class="flex flex-col">
+                        <label for="full_name" class="text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" id="full_name" name="full_name" class="border border-gray-300 rounded-md p-2" value="{{ $speaker->first_name }} {{ $speaker->last_name }}">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="job_title" class="text-sm font-medium text-gray-700">Job Title</label>
+                        <input type="text" id="job_title_bio" name="job_title" class="border border-gray-300 rounded-md p-2" value="{{ $speaker->job_title }}">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="workplace" class="text-sm font-medium text-gray-700">Workplace</label>
+                        <input type="text" id="workplace" name="workplace" class="border border-gray-300 rounded-md p-2" value="{{ $speaker->company }}">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="expertise" class="text-sm font-medium text-gray-700">Area of Expertise</label>
+                        <input type="text" id="expertise" name="expertise" class="border border-gray-300 rounded-md p-2" value="{{ $speaker->industry }}">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="experience_years" class="text-sm font-medium text-gray-700">Years of Experience</label>
+                        <input type="number" id="experience_years" name="experience_years" class="border border-gray-300 rounded-md p-2">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="topics" class="text-sm font-medium text-gray-700">Topics You're Passionate About</label>
+                        <textarea id="topics" name="topics" class="border border-gray-300 rounded-md p-2" rows="2"></textarea>
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="events" class="text-sm font-medium text-gray-700">Notable Speaking Engagements (optional)</label>
+                        <textarea id="events" name="events" class="border border-gray-300 rounded-md p-2" rows="2"></textarea>
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="awards" class="text-sm font-medium text-gray-700">Awards or Certifications (optional)</label>
+                        <textarea id="awards" name="awards" class="border border-gray-300 rounded-md p-2" rows="2"></textarea>
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="motivation" class="text-sm font-medium text-gray-700">What Motivates You to Speak?</label>
+                        <textarea id="motivation" name="motivation" class="border border-gray-300 rounded-md p-2" rows="2"></textarea>
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="fun_fact" class="text-sm font-medium text-gray-700">Interesting Fact About You (optional)</label>
+                        <textarea id="fun_fact" name="fun_fact" class="border border-gray-300 rounded-md p-2" rows="2"></textarea>
+                    </div>
+                    <div class="flex justify-between pt-4">
+                        <button type="button" id="cancelBio" class="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md">Cancel</button>
+                        <button type="submit" id="generateBioSubmit" class="bg-blue-600 text-white px-4 py-2 rounded">Generate Bio</button>
+                    </div>
+                </form>
+
+                <div id="bioOutput" class="mt-6 p-4 border rounded bg-gray-50 hidden">
+                    <div class="flex justify-between mb-2">
+                        <h4 class="font-medium">Generated Bio</h4>
+                        <button id="useBio" class="text-blue-600 hover:text-blue-800">Use This Bio</button>
+                    </div>
+                    <div id="bioContent" class="text-gray-700 max-h-48 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.getElementById('photo').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -105,6 +177,78 @@
                 }
                 reader.readAsDataURL(file);
             }
+        });
+
+        // Modal functionality
+        const modal = document.getElementById('bioModal');
+        const modalDialog = modal.querySelector('.bg-white');
+        const generateBioBtn = document.getElementById('generateBioBtn');
+        const closeModal = document.getElementById('closeModal');
+        const cancelBio = document.getElementById('cancelBio');
+        const bioForm = document.getElementById('bioForm');
+        const bioOutput = document.getElementById('bioOutput');
+        const useBio = document.getElementById('useBio');
+
+        generateBioBtn.addEventListener('click', function() {
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        });
+
+        closeModal.addEventListener('click', function() {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Restore background scrolling
+        });
+
+        cancelBio.addEventListener('click', function() {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Restore background scrolling
+        });
+        
+        // Close modal when clicking outside of it
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+
+        bioForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Show loading state
+            document.getElementById('generateBioSubmit').textContent = 'Generating...';
+            document.getElementById('generateBioSubmit').disabled = true;
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/api/generate-bio', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+                bioOutput.classList.remove('hidden');
+                document.getElementById('bioContent').textContent = result.bio;
+            } catch (error) {
+                console.error('Error generating bio:', error);
+                document.getElementById('bioContent').textContent = 'An error occurred while generating the bio. Please try again.';
+                bioOutput.classList.remove('hidden');
+            } finally {
+                document.getElementById('generateBioSubmit').textContent = 'Generate Bio';
+                document.getElementById('generateBioSubmit').disabled = false;
+            }
+        });
+
+        useBio.addEventListener('click', function() {
+            const generatedBio = document.getElementById('bioContent').textContent;
+            document.getElementById('bio').value = generatedBio;
+            modal.classList.add('hidden');
         });
     </script>
 </body>
