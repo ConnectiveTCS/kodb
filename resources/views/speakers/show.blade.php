@@ -15,7 +15,7 @@
                         <div class="skeleton-loader absolute inset-0 rounded-full bg-gray-200 animate-pulse"></div>
                         
                         {{-- @if ($speaker->photo == Storage::($speaker->photo)) --}}
-                        @if ($speaker->photo == Storage::url($speaker->photo))
+                        @if ($speaker->photo)
                             <img src="{{ $speaker->photo }}" alt="{{ $speaker->first_name }}"
                                 class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
                                 onload="this.classList.remove('opacity-0')">
@@ -77,7 +77,7 @@
                         <span class="text-gray-500">{{ $speaker->job_title }}</span> At
                         <span class="text-gray-500">{{ $speaker->company }}</span>
                         @elseif ($speaker->company)
-                         | {{ Storage::url($speaker->photo) }} 
+                         |  
                         <span class="text-gray-500">{{ $speaker->company }}</span>
                         @endif
                     </h1>

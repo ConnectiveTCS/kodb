@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Mail\SpeakerUpdateInvitation;
 use Carbon\Carbon;
@@ -93,31 +94,35 @@ class SpeakerController extends Controller
             'industry' => 'nullable',
             //cv
             'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
+            'photo' => 'nullable|image|max:2048',
         ]);
+
+        // Prepare data for speaker creation
+        $speakerData = $request->except(['photo', 'cv_resume']);
 
         //handle file upload
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('images/speakers'), $filename);
-            $request->merge(['photo' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/images/speakers', $filename);
+            $speakerData['photo'] = Storage::url($path);
         }
+
         //handle cv upload
         if ($request->hasFile('cv_resume')) {
             $file = $request->file('cv_resume');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('uploads/cv'), $filename);
-            $request->merge(['cv_resume' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/uploads/cv', $filename);
+            $speakerData['cv_resume'] = Storage::url($path);
         }
+
         //get user id
         $user = Auth::user();
-        //merge user id to request
-        $request->merge(['user_id' => $user->id]);
+        //add user id to data
+        $speakerData['user_id'] = $user->id;
 
-        //create speaker
-        Speaker::create($request->all());
-
-        // dd($request->all());
+        //create speaker with explicit data array
+        Speaker::create($speakerData);
 
         return redirect()->route('speakers.index')->with('success', 'Speaker created successfully.');
     }
@@ -147,25 +152,42 @@ class SpeakerController extends Controller
             'industry' => 'nullable',
             //cv
             'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
+            'photo' => 'nullable|image|max:2048',
         ]);
+
+        $speaker = Speaker::findOrFail($id);
+
+        // Prepare data for speaker update
+        $speakerData = $request->except(['photo', 'cv_resume']);
 
         //handle file upload
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('images/speakers'), $filename);
-            $request->merge(['photo' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/images/speakers', $filename);
+            $speakerData['photo'] = Storage::url($path);
+
+            // Delete old file if exists and is not a URL
+            if ($speaker->photo && !filter_var($speaker->photo, FILTER_VALIDATE_URL) && Storage::exists($speaker->photo)) {
+                Storage::delete($speaker->photo);
+            }
         }
+
         //handle cv upload
         if ($request->hasFile('cv_resume')) {
             $file = $request->file('cv_resume');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('uploads/cv'), $filename);
-            $request->merge(['cv_resume' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/uploads/cv', $filename);
+            $speakerData['cv_resume'] = Storage::url($path);
+
+            // Delete old file if exists and is not a URL
+            if ($speaker->cv_resume && !filter_var($speaker->cv_resume, FILTER_VALIDATE_URL) && Storage::exists($speaker->cv_resume)) {
+                Storage::delete($speaker->cv_resume);
+            }
         }
 
-        //update speaker
-        Speaker::findOrFail($id)->update($request->all());
+        //update speaker with explicit data array
+        $speaker->update($speakerData);
 
         return redirect()->route('speakers.index')->with('success', 'Speaker updated successfully.');
     }
@@ -686,25 +708,39 @@ class SpeakerController extends Controller
             'bio' => 'nullable',
             'industry' => 'nullable',
             'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
+            'photo' => 'nullable|image|max:2048',
         ]);
+
+        // Prepare data for speaker update
+        $speakerData = $request->except(['photo', 'cv_resume']);
 
         // Handle file uploads
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('images/speakers'), $filename);
-            $request->merge(['photo' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/images/speakers', $filename);
+            $speakerData['photo'] = Storage::url($path);
+
+            // Delete old file if exists and is not a URL
+            if ($speaker->photo && !filter_var($speaker->photo, FILTER_VALIDATE_URL) && Storage::exists($speaker->photo)) {
+                Storage::delete($speaker->photo);
+            }
         }
 
         if ($request->hasFile('cv_resume')) {
             $file = $request->file('cv_resume');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('uploads/cv'), $filename);
-            $request->merge(['cv_resume' => $filename]);
+            $filename = time() . '_' . Str::slug($request->first_name) . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('public/uploads/cv', $filename);
+            $speakerData['cv_resume'] = Storage::url($path);
+
+            // Delete old file if exists and is not a URL
+            if ($speaker->cv_resume && !filter_var($speaker->cv_resume, FILTER_VALIDATE_URL) && Storage::exists($speaker->cv_resume)) {
+                Storage::delete($speaker->cv_resume);
+            }
         }
 
-        // Update speaker details
-        $speaker->update($request->all());
+        // Update speaker details with explicit data array
+        $speaker->update($speakerData);
 
         // Clear token after successful update
         $speaker->update([
