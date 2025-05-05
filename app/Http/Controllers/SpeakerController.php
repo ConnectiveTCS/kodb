@@ -293,6 +293,7 @@ class SpeakerController extends Controller
                 'organization name' => 'company',
                 'attach cv (pdf only)' => 'cv_resume',
                 'attach profile photo' => 'photo',
+                'tel' => 'tel', // Added mapping for "tel" column as fallback for phone
             ];
 
             // Map CSV header indices to our field names with fuzzy matching
@@ -419,6 +420,9 @@ class SpeakerController extends Controller
                     $phone = '+' . $areaCode . $data['phone'];
                 } elseif (!empty($data['phone'])) {
                     $phone = $data['phone'];
+                } elseif (!empty($data['tel'])) {
+                    // Fallback to "tel" field if phone is empty but tel exists
+                    $phone = $data['tel'];
                 }
 
                 // Fix URLs - replace escaped slashes with normal slashes
@@ -435,7 +439,7 @@ class SpeakerController extends Controller
                         'first_name' => $firstName, // Properly formatted
                         'last_name' => $lastName,   // Properly formatted
                         'email' => $email,          // Normalized email
-                        'phone' => $phone,
+                        'phone' => $phone,          // Now with tel fallback
                         'company' => $this->formatName($data['company'] ?? ''), // Format company name
                         'job_title' => isset($data['job_title']) ? $this->formatName($data['job_title']) : null,
                         'bio' => $data['bio'] ?? null, // Skills stored in bio

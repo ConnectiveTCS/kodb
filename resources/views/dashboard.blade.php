@@ -17,8 +17,8 @@
                     <li class="flex items-center justify-between p-2 {{ !$loop->last ? 'border-b border-gray-200' : '' }}">
                         <div class="flex items-center">
                             {{-- add placeholder image url --}}
-                            <img src="https://robohash.org/{{ $l->first_name }}" alt="{{ $l->first_name ?? '' }}"
-                                class="w-10 h-10 rounded-full mr-2">
+                            <img src="{{ $l->photo ?? "https://robohash.org/$l->first_name" }}" alt="{{ $l->first_name ?? '' }}"
+                                class="w-10 h-10 rounded-full mr-2 object-cover">
                             <div class="flex flex-col">
                                 <span class="text-gray-800">{{ $l->first_name ?? '' }} {{ $l->last_name ?? '' }}</span>
                                 <span class="text-gray-500 text-sm"><a href="mailto:{{ $l->email ?? '' }}">{{ $l->email ?? '' }}</a></span>
