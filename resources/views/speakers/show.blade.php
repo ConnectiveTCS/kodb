@@ -9,45 +9,21 @@
         <div class="bg-white shadow rounded-lg p-6">
             <div class="flex flex-col md:flex-row">
                 <!-- Speaker Image -->
-                <div class="w-full md:w-1/3 flex justify-center mb-6 md:mb-0">
-                    @if ($speaker->photo)
-                        <img src="{{ $speaker->photo }}" alt="{{ $speaker->first_name }}"
-                            class="rounded-full w-48 h-48 object-cover shadow-lg object-top">
-                    @else
-                            <img src="https://robohash.org/{{ $speaker->first_name }}" alt="{{ $speaker->first_name }}"
-                                class="rounded-full w-48 h-48 object-cover shadow-lg object-top">
-                    @endif
-                </div>
-
-                <!-- Speaker Details -->
-                <div class="w-full md:w-2/3 md:pl-8">
-                    <h1 class="text-2xl font-bold text-gray-800 mb-2">{{ $speaker->first_name }}</h1>
-
-                    @if ($speaker->title)
-                        <p class="text-gray-600 mb-4">{{ $speaker->title }}</p>
-                    @endif
-
-                    <div class="mb-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2">About</h3>
-                        @if ($speaker->bio)
-                        <p class="text-gray-600">{{ $speaker->bio ?? 'No Bio'}}</p>
+                <div class="w-full md:w-1/3 flex mb-6 md:mb-0 flex-col items-center ">
+                    <div class="relative w-48 h-48">
+                        <!-- Skeleton loader animation -->
+                        <div class="skeleton-loader absolute inset-0 rounded-full bg-gray-200 animate-pulse"></div>
+                        
+                        @if ($speaker->photo)
+                            <img src="{{ $speaker->photo }}" alt="{{ $speaker->first_name }}"
+                                class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
+                                onload="this.classList.remove('opacity-0')">
                         @else
-                            <p class="text-gray-600">No Bio</p>
+                            <img src="https://robohash.org/{{ $speaker->first_name }}" alt="{{ $speaker->first_name }}"
+                                class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
+                                onload="this.classList.remove('opacity-0')">
                         @endif
                     </div>
-
-                    <div class="mb-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Contact Information</h3>
-                        <div class="text-gray-600 flex gap-2 items-center">
-                            <p class="">Email:</p> <a href="mailto:{{ $speaker->email }}">{{ $speaker->email }}</a>
-                        </div>
-                        @if ($speaker->phone)
-                            <div class="text-gray-600 flex gap-2 items-center">
-                                <p class="">Phone Number:</p> {{ $speaker->phone }}
-                            </div>
-                        @endif
-                    </div>
-
                     <div class="mb-6">
                         @if ($speaker->cv_resume)
                         <h3 class="text-lg font-semibold text-gray-700 mb-2">CV/Resume</h3>
@@ -86,6 +62,45 @@
                         @endif
                     </div>
                 </div>
+
+                <!-- Speaker Details -->
+                <div class="w-full md:w-2/3 md:pl-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">{{ $speaker->first_name }} 
+                        <span class="text-gray-500">{{ $speaker->last_name }}</span>
+                        @if ($speaker->job_title && $speaker->company)
+                          | 
+                        <span class="text-gray-500">{{ $speaker->job_title }}</span> At 
+                        <span class="text-gray-500">{{ $speaker->company }}</span>
+                        @elseif ($speaker->company)
+                         | 
+                        <span class="text-gray-500">{{ $speaker->company }}</span>
+                        @elseif ($speaker->company)
+                        @endif
+                    </h1>
+                    <p class="text-gray-600 mb-4">{{ $speaker->industry ?? '' }}</p>
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">About</h3>
+                        @if ($speaker->bio)
+                        <p class="text-gray-600">{{ $speaker->bio ?? 'No Bio'}}</p>
+                        @else
+                            <p class="text-gray-600">No Bio</p>
+                        @endif
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Contact Information</h3>
+                        <div class="text-gray-600 flex gap-2 items-center">
+                            <p class="">Email:</p> <a href="mailto:{{ $speaker->email }}">{{ $speaker->email }}</a>
+                        </div>
+                        @if ($speaker->phone)
+                            <div class="text-gray-600 flex gap-2 items-center">
+                                <p class="">Phone Number:</p> {{ $speaker->phone }}
+                            </div>
+                        @endif
+                    </div>
+
+                    
+                </div>
             </div>
 
             <!-- Past Speaking Events -->
@@ -108,12 +123,12 @@
 
             <!-- Action Buttons -->
             <div class="mt-8 flex justify-end space-x-4">
-                @can('update', $speaker)
+                @if(Auth::user() && Auth::user()->isAdmin())
                     <a href="{{ route('speakers.edit', $speaker) }}"
                         class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
                         Edit Profile
                     </a>
-                @endcan
+                @endif
 
                 <a href="{{ route('speakers.index') }}"
                     class="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded">
@@ -122,4 +137,54 @@
             </div>
         </div>
     </div>
+
+    <style>
+        .skeleton-loader {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+        
+        img {
+            position: relative;
+            z-index: 10;
+        }
+        
+        img.opacity-0 + .skeleton-loader {
+            opacity: 1;
+        }
+        
+        img:not(.opacity-0) + .skeleton-loader {
+            opacity: 0;
+        }
+    </style>
+
+    <script>
+        // Handle image load events
+        document.addEventListener('DOMContentLoaded', function() {
+            const images = document.querySelectorAll('.opacity-0');
+            images.forEach(img => {
+                if (img.complete) {
+                    img.classList.remove('opacity-0');
+                }
+                
+                img.addEventListener('load', function() {
+                    this.classList.remove('opacity-0');
+                    const loader = this.parentNode.querySelector('.skeleton-loader');
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
 </x-app-layout>
