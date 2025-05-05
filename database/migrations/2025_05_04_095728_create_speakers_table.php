@@ -26,6 +26,8 @@ return new class extends Migration
             $table->string('job_title')->nullable();
             $table->string('bio')->nullable();
             $table->string('industry')->nullable();
+            //cv
+            $table->string('cv_resume')->nullable();
         });
     }
 

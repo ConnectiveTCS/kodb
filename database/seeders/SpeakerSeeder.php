@@ -29,6 +29,7 @@ class SpeakerSeeder extends Seeder
         \App\Models\Speaker::factory(10)->create([
             'user_id' => 1,
             'photo' => 'https://picsum.photos/200/300',
+            'cv_resume' => 'https://picsum.photos/200/300',
             'created_at' => now(),
         ]);
 

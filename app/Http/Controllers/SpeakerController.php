@@ -87,6 +87,8 @@ class SpeakerController extends Controller
             'job_title' => 'nullable',
             'bio' => 'nullable',
             'industry' => 'nullable',
+            //cv
+            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
         ]);
 
         //handle file upload
@@ -95,6 +97,13 @@ class SpeakerController extends Controller
             $filename = time() . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('images/speakers'), $filename);
             $request->merge(['photo' => $filename]);
+        }
+        //handle cv upload
+        if ($request->hasFile('cv_resume')) {
+            $file = $request->file('cv_resume');
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('uploads/cv'), $filename);
+            $request->merge(['cv_resume' => $filename]);
         }
         //get user id
         $user = Auth::user();
@@ -130,6 +139,8 @@ class SpeakerController extends Controller
             'job_title' => 'nullable',
             'bio' => 'nullable',
             'industry' => 'nullable',
+            //cv
+            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
         ]);
 
         //handle file upload
@@ -138,6 +149,13 @@ class SpeakerController extends Controller
             $filename = time() . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('images/speakers'), $filename);
             $request->merge(['photo' => $filename]);
+        }
+        //handle cv upload
+        if ($request->hasFile('cv_resume')) {
+            $file = $request->file('cv_resume');
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('uploads/cv'), $filename);
+            $request->merge(['cv_resume' => $filename]);
         }
 
         //update speaker
@@ -230,7 +248,8 @@ class SpeakerController extends Controller
                 'phone' => ['phone number', 'phonenumber', 'telephone', 'tel', 'mobile', 'cell', 'cellphone'],
                 'company' => ['company name', 'companyname', 'employer', 'organization', 'organisation', 'organization name', 'organisation name'],
                 'job_title' => ['job title', 'jobtitle', 'title', 'position', 'role'],
-                'industry' => ['sector', 'field', 'business']
+                'industry' => ['sector', 'field', 'business'],
+                'cv_resume' => ['cv', 'resume', 'curriculum vitae'],
             ];
 
             // Convert headers to lowercase for case-insensitive comparison
@@ -480,7 +499,9 @@ class SpeakerController extends Controller
                 $speaker->company,
                 $speaker->job_title,
                 $speaker->industry,
-                $speaker->bio
+                $speaker->bio,
+                //cv
+                $speaker->cv_resume,
             ]);
         }
         

@@ -28,6 +28,7 @@ class SpeakerFactory extends Factory
             'job_title' => $this->faker->jobTitle(),
             'bio' => $this->faker->paragraph(),
             'industry' => $this->faker->word(),
+            'cv_resume' => $this->faker->filePath(),
             'created_at' => now(),
         ];
     }
