@@ -193,6 +193,33 @@ class SpeakerController extends Controller
             ->with('success', "{$count} speaker(s) deleted successfully.");
     }
     //import speakers via csv and
+
+    // Helper function to properly format name with first letter uppercase
+    private function formatName($name)
+    {
+        // Split name by spaces
+        $parts = explode(' ', $name);
+        $formattedParts = [];
+
+        foreach ($parts as $part) {
+            if (!empty($part)) {
+                // Handle hyphenated names like "Al-Abri"
+                if (strpos($part, '-') !== false) {
+                    $hyphenParts = explode('-', $part);
+                    $formattedHyphenParts = array_map(function ($p) {
+                        return ucfirst(strtolower($p));
+                    }, $hyphenParts);
+                    $formattedParts[] = implode('-', $formattedHyphenParts);
+                } else {
+                    $formattedParts[] = ucfirst(strtolower($part));
+                }
+            }
+        }
+
+        // Join and return the formatted name
+        return implode(' ', $formattedParts);
+    }
+
     public function import(Request $request)
     {
         // Validate request
@@ -343,12 +370,15 @@ class SpeakerController extends Controller
                     continue;
                 }
 
-                // Check if email already exists
-                if (Speaker::where('email', $data['email'])->exists()) {
+                // Normalize email (lowercase and trim) before checking for duplicates
+                $email = strtolower(trim($data['email']));
+
+                // Check if email already exists - use case-insensitive comparison (LOWER function)
+                if (Speaker::whereRaw('LOWER(email) = ?', [strtolower($email)])->exists()) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
                         'reason' => 'Email already exists in database',
-                        'data' => 'Email: ' . $data['email']
+                        'data' => 'Email: ' . $email
                     ];
                     $skipCount++;
                     continue;
@@ -363,7 +393,7 @@ class SpeakerController extends Controller
                     // Handle Arabic names with Al/Al-/etc.
                     $count = count($fullNameParts);
 
-                    if ($count >= 2 && preg_match('/^(?:Al|Al-|El|El-|Bin|Ibn)/i', $fullNameParts[$count - 2])) {
+                    if ($count >= 2 && preg_match('/^(?:Al |Al-|El|El-|Bin-|Ibn)/i', $fullNameParts[$count - 2])) {
                         // If second last word is a prefix like 'Al', keep it with the last name
                         $lastName = $fullNameParts[$count - 2] . ' ' . $fullNameParts[$count - 1];
                         array_splice($fullNameParts, -2, 2);
@@ -376,6 +406,10 @@ class SpeakerController extends Controller
                     $firstName = $data['first_name'];
                     $lastName = ''; // Default empty last name
                 }
+
+                // Format first name and last name with proper capitalization
+                $firstName = $this->formatName($firstName);
+                $lastName = $this->formatName($lastName);
 
                 // Combine area code and phone number if both exist
                 $phone = '';
@@ -391,22 +425,37 @@ class SpeakerController extends Controller
                 $cvUrl = !empty($data['cv_resume']) ? str_replace('\\/', '/', $data['cv_resume']) : null;
                 $photoUrl = !empty($data['photo']) ? str_replace('\\/', '/', $data['photo']) : null;
 
-                // Create speaker - store URLs directly instead of downloading
-                Speaker::create([
-                    'user_id' => Auth::id(),
-                    'first_name' => $firstName,
-                    'last_name' => $lastName,
-                    'email' => $data['email'],
-                    'phone' => $phone,
-                    'company' => $data['company'] ?? null,
-                    'job_title' => null, // Not available in this CSV
-                    'bio' => $data['bio'] ?? null, // Skills stored in bio
-                    'industry' => null, // Not available in this CSV
-                    'photo' => $photoUrl, // Store URL directly
-                    'cv_resume' => $cvUrl, // Store URL directly
-                ]);
-                
-                $successCount++;
+                // Keep email in lowercase
+                $data['email'] = $email;
+
+                try {
+                    // Create speaker with proper error handling
+                    Speaker::create([
+                        'user_id' => Auth::id(),
+                        'first_name' => $firstName, // Properly formatted
+                        'last_name' => $lastName,   // Properly formatted
+                        'email' => $email,          // Normalized email
+                        'phone' => $phone,
+                        'company' => $this->formatName($data['company'] ?? ''), // Format company name
+                        'job_title' => isset($data['job_title']) ? $this->formatName($data['job_title']) : null,
+                        'bio' => $data['bio'] ?? null, // Skills stored in bio
+                        'industry' => isset($data['industry']) ? $this->formatName($data['industry']) : null,
+                        'photo' => $photoUrl, // Keep URL as is
+                        'cv_resume' => $cvUrl, // Keep URL as is
+                    ]);
+
+                    $successCount++;
+                } catch (\Exception $e) {
+                    // If there's an error creating the speaker (like duplicate email not caught by our check),
+                    // log it and continue with the import instead of failing completely
+                    $skipReasons[] = [
+                        'row' => $rowNumber,
+                        'reason' => 'Error creating speaker: ' . $e->getMessage(),
+                        'data' => 'Email: ' . $email . ', Name: ' . $firstName . ' ' . $lastName
+                    ];
+                    $skipCount++;
+                    continue;
+                }
             }
             
             fclose($handle);
