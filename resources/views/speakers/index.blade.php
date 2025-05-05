@@ -367,9 +367,19 @@
                                 <h4 class="font-medium text-gray-900 mb-2">CSV Headers Detected</h4>
                                 <div class="bg-gray-50 p-3 rounded-lg text-sm">
                                     <p><strong>Headers found:</strong> {{ implode(', ', session('import_results')['original_headers']) }}</p>
-                                    <p class="mt-1 text-xs text-gray-500">
+                                    <p class="mt-2"><strong>Cleaned headers:</strong> {{ implode(', ', session('import_results')['cleaned_headers'] ?? []) }}</p>
+                                    <p class="mt-2 text-xs text-gray-500">
                                         Required columns: "Full Name" (or "Name", etc.) and "Email"
                                     </p>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if(isset(session('import_results')['header_debug']))
+                            <div class="mb-4">
+                                <h4 class="font-medium text-gray-900 mb-2">Header Mapping Details</h4>
+                                <div class="bg-gray-50 p-3 rounded-lg text-sm overflow-auto max-h-36">
+                                    <pre class="whitespace-pre-wrap">{{ implode("\n", session('import_results')['header_debug']) }}</pre>
                                 </div>
                             </div>
                         @endif

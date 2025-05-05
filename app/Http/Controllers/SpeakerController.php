@@ -225,7 +225,15 @@ class SpeakerController extends Controller
             if (!file_exists($filePath)) {
                 return redirect()->route('speakers.index')->with('error', 'CSV file not found.');
             }
-            
+
+            // Read the CSV file as binary first to detect and remove BOM if present
+            $content = file_get_contents($filePath);
+            // Remove BOM character if present
+            $bom = pack('H*', 'EFBBBF');
+            $content = preg_replace("/^$bom/", '', $content);
+            // Write back clean content
+            file_put_contents($filePath, $content);
+
             $handle = fopen($filePath, 'r');
             if (!$handle) {
                 return redirect()->route('speakers.index')->with('error', 'Could not open file.');
@@ -240,28 +248,50 @@ class SpeakerController extends Controller
             // Save original headers for debugging
             $originalHeaders = $header;
 
-            // Specific column mapping for this CSV format
+            // Clean and normalize headers - remove quotes and HTML tags
+            $cleanedHeaders = [];
+            foreach ($header as $idx => $columnName) {
+                // Remove quotes, BOM, HTML tags and trim whitespace
+                $cleaned = trim(str_replace(['"', "'"], '', strip_tags($columnName)));
+                $cleanedHeaders[$idx] = $cleaned;
+            }
+
+            // Specific column mapping for this CSV format - use case-insensitive matching
             $csvMap = [
                 'full name' => 'first_name', // Will handle splitting later
                 'area code' => 'area_code', // Will combine with phone number later
                 'phone number' => 'phone',
                 'email' => 'email',
-                'skills' => 'bio', // Store skills in bio field
+                'skillset/subject expert' => 'bio', // Store skills in bio field
                 'organization name' => 'company',
                 'attach cv (pdf only)' => 'cv_resume',
                 'attach profile photo' => 'photo',
             ];
 
-            // Convert headers to lowercase and trim for matching
-            $headerLower = array_map('trim', $header);
-            $headerLower = array_map('strtolower', $headerLower);
-
-            // Map CSV header indices to our field names
+            // Map CSV header indices to our field names with fuzzy matching
             $mappedIndices = [];
-            foreach ($headerLower as $index => $colName) {
-                if (isset($csvMap[$colName])) {
-                    $mappedIndices[$index] = $csvMap[$colName];
+            foreach ($cleanedHeaders as $index => $colName) {
+                // Direct match
+                $lowerColName = strtolower($colName);
+                if (isset($csvMap[$lowerColName])) {
+                    $mappedIndices[$index] = $csvMap[$lowerColName];
+                    continue;
                 }
+
+                // Partial match
+                foreach ($csvMap as $csvKey => $fieldName) {
+                    if (stripos($lowerColName, $csvKey) !== false) {
+                        $mappedIndices[$index] = $fieldName;
+                        break;
+                    }
+                }
+            }
+
+            // Debug the header mapping
+            $headerDebug = [];
+            foreach ($cleanedHeaders as $index => $colName) {
+                $mapped = isset($mappedIndices[$index]) ? $mappedIndices[$index] : 'Not mapped';
+                $headerDebug[] = "{$colName} => {$mapped}";
             }
 
             // Begin transaction for data consistency
@@ -272,12 +302,12 @@ class SpeakerController extends Controller
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                 $rowNumber++;
 
-                // Skip if row doesn't have enough columns
-                if (count($row) < count($mappedIndices)) {
+                // Skip if row is empty
+                if (empty(array_filter($row))) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
-                        'reason' => 'Row has insufficient columns',
-                        'data' => implode(', ', array_slice($row, 0, 3)) . '...'
+                        'reason' => 'Empty row',
+                        'data' => 'Empty row'
                     ];
                     $skipCount++;
                     continue;
@@ -287,7 +317,8 @@ class SpeakerController extends Controller
                 $data = [];
                 foreach ($mappedIndices as $index => $fieldName) {
                     if (isset($row[$index])) {
-                        $data[$fieldName] = trim($row[$index]);
+                        // Clean the data - strip HTML tags and trim
+                        $data[$fieldName] = trim(strip_tags($row[$index]));
                     }
                 }
 
@@ -296,7 +327,7 @@ class SpeakerController extends Controller
                     $skipReasons[] = [
                         'row' => $rowNumber,
                         'reason' => 'Missing required field: Full Name',
-                        'data' => 'Email: ' . ($data['email'] ?? 'N/A')
+                        'data' => 'Email: ' . ($data['email'] ?? 'N/A') . '. Headers: ' . implode(', ', array_slice($cleanedHeaders, 0, 3))
                     ];
                     $skipCount++;
                     continue;
@@ -360,49 +391,7 @@ class SpeakerController extends Controller
                 $cvUrl = !empty($data['cv_resume']) ? str_replace('\\/', '/', $data['cv_resume']) : null;
                 $photoUrl = !empty($data['photo']) ? str_replace('\\/', '/', $data['photo']) : null;
 
-                // Process the CV and photo files if URLs are provided
-                $cvFilename = null;
-                $photoFilename = null;
-
-                if ($cvUrl) {
-                    try {
-                        $cvContent = @file_get_contents($cvUrl);
-                        if ($cvContent !== false) {
-                            $cvFilename = time() . '_' . basename($cvUrl);
-                            $cvPath = public_path('uploads/cv');
-
-                            if (!file_exists($cvPath)) {
-                                mkdir($cvPath, 0755, true);
-                            }
-
-                            file_put_contents($cvPath . '/' . $cvFilename, $cvContent);
-                        }
-                    } catch (\Exception $e) {
-                        // If CV download fails, just log it and continue
-                        $cvFilename = null;
-                    }
-                }
-
-                if ($photoUrl) {
-                    try {
-                        $photoContent = @file_get_contents($photoUrl);
-                        if ($photoContent !== false) {
-                            $photoFilename = time() . '_' . basename($photoUrl);
-                            $photoPath = public_path('images/speakers');
-
-                            if (!file_exists($photoPath)) {
-                                mkdir($photoPath, 0755, true);
-                            }
-
-                            file_put_contents($photoPath . '/' . $photoFilename, $photoContent);
-                        }
-                    } catch (\Exception $e) {
-                        // If photo download fails, just log it and continue
-                        $photoFilename = null;
-                    }
-                }
-                
-                // Create speaker
+                // Create speaker - store URLs directly instead of downloading
                 Speaker::create([
                     'user_id' => Auth::id(),
                     'first_name' => $firstName,
@@ -413,8 +402,8 @@ class SpeakerController extends Controller
                     'job_title' => null, // Not available in this CSV
                     'bio' => $data['bio'] ?? null, // Skills stored in bio
                     'industry' => null, // Not available in this CSV
-                    'photo' => $photoFilename,
-                    'cv_resume' => $cvFilename,
+                    'photo' => $photoUrl, // Store URL directly
+                    'cv_resume' => $cvUrl, // Store URL directly
                 ]);
                 
                 $successCount++;
@@ -436,14 +425,17 @@ class SpeakerController extends Controller
                 'skip_count' => $skipCount,
                 'skip_reasons' => $skipReasons,
                 'original_headers' => $originalHeaders,
+                'cleaned_headers' => $cleanedHeaders,
+                'mapped_indices' => $mappedIndices,
+                'header_debug' => $headerDebug,
                 'mapped_fields' => array_filter([
                     'Full Name' => 'first_name & last_name',
                     'Area Code + Phone Number' => 'phone',
                     'Email' => 'email',
-                    'Skills' => 'bio',
+                    'Skillset/Subject Expert' => 'bio',
                     'Organization Name' => 'company',
-                    'Attach CV (PDF Only)' => 'cv_resume',
-                    'Attach Profile Photo' => 'photo',
+                    'Attach CV (PDF Only)' => 'cv_resume (URL saved)',
+                    'Attach Profile Photo' => 'photo (URL saved)',
                 ]),
             ]);
             
@@ -460,7 +452,7 @@ class SpeakerController extends Controller
             }
             
             return redirect()->route('speakers.index')
-                ->with('error', 'Error importing speakers: ' . $e->getMessage());
+                ->with('error', 'Error importing speakers: ' . $e->getMessage() . ' at line ' . $e->getLine());
         }
     }
 

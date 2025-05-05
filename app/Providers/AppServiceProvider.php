@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Increase the PHP timeout limit for import operation
+        if (request()->is('speakers/import')) {
+            set_time_limit(300); // 5 minutes for import
+        }
     }
 }
