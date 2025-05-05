@@ -126,14 +126,13 @@
                 'email' => 'Email',
                 'phone' => 'Phone',
                 'company' => 'Company',
-                'industry' => 'Industry',
             ];
             $currentSort = request('sort', 'id');
             $currentDirection = request('direction', 'asc');
             $visibleColumns = $visibleColumns ?? array_keys($columns);
             @endphp
             <!-- Table Section -->
-            <div class="overflow-x-auto">
+            <div class="" style="width: -webkit-fill-available;">
                 <!-- Hidden form for batch delete -->
                 <form id="batch-delete-form" action="{{ route('speakers.batch-delete') }}" method="POST" class="hidden">
                     @csrf
