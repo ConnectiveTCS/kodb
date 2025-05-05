@@ -187,7 +187,8 @@ class SpeakerController extends Controller
         $successCount = 0;
         $skipCount = 0;
         $skipReasons = []; // Track reasons for skipping
-        
+        $originalHeaders = []; // Store the original headers from CSV
+
         try {
             if ($request->hasFile('file')) {
                 $file = $request->file('file');
@@ -217,7 +218,41 @@ class SpeakerController extends Controller
                 fclose($handle);
                 return redirect()->route('speakers.index')->with('error', 'Empty or invalid CSV file.');
             }
-            
+
+            // Save original headers for debugging
+            $originalHeaders = $header;
+
+            // Column mapping - handle common variations in header names
+            $columnMap = [
+                'first_name' => ['first name', 'firstname', 'fname', 'first', 'given name', 'givenname', 'name', 'full name', 'fullname'],
+                'last_name' => ['last name', 'lastname', 'lname', 'last', 'surname', 'family name', 'familyname'],
+                'email' => ['email address', 'emailaddress', 'e-mail', 'e mail', 'mail'],
+                'phone' => ['phone number', 'phonenumber', 'telephone', 'tel', 'mobile', 'cell', 'cellphone'],
+                'company' => ['company name', 'companyname', 'employer', 'organization', 'organisation', 'organization name', 'organisation name'],
+                'job_title' => ['job title', 'jobtitle', 'title', 'position', 'role'],
+                'industry' => ['sector', 'field', 'business']
+            ];
+
+            // Convert headers to lowercase for case-insensitive comparison
+            $header = array_map('trim', $header);
+            $header = array_map('strtolower', $header);
+
+            // Create a new header array that maps to our expected column names
+            $mappedHeader = [];
+            foreach ($header as $index => $columnName) {
+                $mapped = false;
+                foreach ($columnMap as $standardColumn => $variations) {
+                    if ($columnName === strtolower($standardColumn) || in_array($columnName, $variations)) {
+                        $mappedHeader[$index] = $standardColumn;
+                        $mapped = true;
+                        break;
+                    }
+                }
+                if (!$mapped) {
+                    $mappedHeader[$index] = $columnName; // Keep original if no mapping
+                }
+            }
+
             // Begin transaction for data consistency
             DB::beginTransaction();
             
@@ -235,16 +270,36 @@ class SpeakerController extends Controller
                     $skipCount++;
                     continue;
                 }
-                
-                $data = array_combine($header, $row);
-                
+
+                // Create data array with mapped column names
+                $data = [];
+                foreach ($row as $index => $value) {
+                    if (isset($mappedHeader[$index])) {
+                        $data[$mappedHeader[$index]] = trim($value);
+                    }
+                }
+
+                // Check for required fields after mapping
+                if (empty($data['first_name']) && empty($data['email'])) {
+                    // Try to extract a name if we have a combined name field
+                    if (!empty($data['name']) || !empty($data['fullname']) || !empty($data['full name'])) {
+                        $fullNameValue = $data['name'] ?? $data['fullname'] ?? $data['full name'];
+                        $nameParts = explode(' ', $fullNameValue);
+                        if (count($nameParts) >= 2) {
+                            $data['first_name'] = $nameParts[0];
+                            $data['last_name'] = end($nameParts);
+                        } else {
+                            $data['first_name'] = $fullNameValue;
+                        }
+                    }
+                }
+
                 // Validate required fields
-                $data = array_map('trim', $data);
                 if (empty($data['first_name'])) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
                         'reason' => 'Missing required field: first_name',
-                        'data' => 'Email: ' . ($data['email'] ?? 'N/A')
+                        'data' => 'Headers found: ' . implode(', ', array_keys($data))
                     ];
                     $skipCount++;
                     continue;
@@ -259,45 +314,53 @@ class SpeakerController extends Controller
                     $skipCount++;
                     continue;
                 }
-                
+
                 // Check if email already exists
-                if (Speaker::where('email', $data['Email'])->exists()) {
+                if (Speaker::where('email', $data['email'])->exists()) {
                     $skipReasons[] = [
                         'row' => $rowNumber,
                         'reason' => 'Email already exists in database',
-                        'data' => 'Email: ' . $data['Email']
+                        'data' => 'Email: ' . $data['email']
                     ];
                     $skipCount++;
                     continue;
                 }
-                
-                // Process the name
-                $fullName = explode(' ', $data['first_name']);
-                $count = count($fullName);
-                
-                if ($count >= 2 && preg_match('/^Al/i', $fullName[$count-2])) {
-                    // If second last word starts with "Al" (case insensitive), join it with the last name
-                    $lastName = $fullName[$count-2] . ' ' . $fullName[$count-1];
-                    array_pop($fullName);
-                    array_pop($fullName);
-                } else {
-                    // Otherwise just use last word as last name
-                    $lastName = array_pop($fullName);
+
+                // Process the name if last_name is not provided
+                if (empty($data['last_name'])) {
+                    $fullName = explode(' ', $data['first_name']);
+                    $count = count($fullName);
+
+                    if ($count >= 2 && preg_match('/^Al/i', $fullName[$count - 2])) {
+                        // If second last word starts with "Al" (case insensitive), join it with the last name
+                        $lastName = $fullName[$count - 2] . ' ' . $fullName[$count - 1];
+                        array_pop($fullName);
+                        array_pop($fullName);
+                    } else if ($count >= 2) {
+                        // Otherwise just use last word as last name
+                        $lastName = array_pop($fullName);
+                    } else {
+                        $lastName = ''; // Default empty last name if only one word
+                    }
+
+                    $firstName = implode(' ', $fullName);
+
+                    // Update the data array
+                    $data['first_name'] = $firstName ?: $data['first_name']; // Fallback to original if empty
+                    $data['last_name'] = $lastName;
                 }
-                
-                $firstName = implode(' ', $fullName);
                 
                 // Create speaker
                 Speaker::create([
                     'user_id' => Auth::id(),
-                    'first_name' => $firstName,
-                    'last_name' => $lastName,
-                    'email' => $data['Email'],
-                    'phone' => $data['Phone Number'] ?? null,
-                    'company' => $data['Organization Name'] ?? null,
-                    'job_title' => null,
-                    'bio' => null,
-                    'industry' => null,
+                    'first_name' => $data['first_name'],
+                    'last_name' => $data['last_name'] ?? '',
+                    'email' => $data['email'],
+                    'phone' => $data['phone'] ?? null,
+                    'company' => $data['company'] ?? null,
+                    'job_title' => $data['job_title'] ?? null,
+                    'bio' => $data['bio'] ?? null,
+                    'industry' => $data['industry'] ?? null,
                     'photo' => null,
                 ]);
                 
@@ -318,7 +381,9 @@ class SpeakerController extends Controller
             session()->flash('import_results', [
                 'success_count' => $successCount,
                 'skip_count' => $skipCount,
-                'skip_reasons' => $skipReasons
+                'skip_reasons' => $skipReasons,
+                'original_headers' => $originalHeaders,
+                'mapped_headers' => $mappedHeader
             ]);
             
             return redirect()->route('speakers.index')

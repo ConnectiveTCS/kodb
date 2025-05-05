@@ -195,8 +195,7 @@
                                 <div class="flex justify-center space-x-3">
                                     <a href="{{ route('speakers.show', $speaker->id) }}" class="text-indigo-600 hover:text-indigo-900 flex items-center">
                                         <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                                         </svg>
                                         View
                                     </a>
@@ -361,6 +360,19 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Display detected headers -->
+                        @if(isset(session('import_results')['original_headers']))
+                            <div class="mb-4">
+                                <h4 class="font-medium text-gray-900 mb-2">CSV Headers Detected</h4>
+                                <div class="bg-gray-50 p-3 rounded-lg text-sm">
+                                    <p><strong>Headers found:</strong> {{ implode(', ', session('import_results')['original_headers']) }}</p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Required columns: "first_name" (or "First Name", "Name", etc.) and "email" (or "Email Address", etc.)
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
                         
                         @if(count(session('import_results')['skip_reasons']) > 0)
                             <h4 class="font-medium text-gray-900 mb-2">Skipped Entries</h4>
