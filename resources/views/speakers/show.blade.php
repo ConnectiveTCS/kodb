@@ -14,10 +14,15 @@
                         <!-- Skeleton loader animation -->
                         <div class="skeleton-loader absolute inset-0 rounded-full bg-gray-200 animate-pulse"></div>
                         
-                        @if ($speaker->photo)
+                        {{-- @if ($speaker->photo == Storage::($speaker->photo)) --}}
+                        @if ($speaker->photo == Storage::url($speaker->photo))
                             <img src="{{ $speaker->photo }}" alt="{{ $speaker->first_name }}"
                                 class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
                                 onload="this.classList.remove('opacity-0')">
+                        {{-- @elseif ($speaker->photo &&! file_exists(public_path('images/speakers/' . $speaker->photo)))
+                            <img src="{{ $speaker->photo }}" alt="{{ $speaker->first_name }}"
+                                class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
+                                onload="this.classList.remove('opacity-0')"> --}}
                         @else
                             <img src="https://robohash.org/{{ $speaker->first_name }}" alt="{{ $speaker->first_name }}"
                                 class="rounded-full w-48 h-48 object-cover shadow-lg object-top opacity-0 transition-opacity duration-300"
@@ -69,12 +74,11 @@
                         <span class="text-gray-500">{{ $speaker->last_name }}</span>
                         @if ($speaker->job_title && $speaker->company)
                           | 
-                        <span class="text-gray-500">{{ $speaker->job_title }}</span> At 
+                        <span class="text-gray-500">{{ $speaker->job_title }}</span> At
                         <span class="text-gray-500">{{ $speaker->company }}</span>
                         @elseif ($speaker->company)
-                         | 
+                         | {{ Storage::url($speaker->photo) }} 
                         <span class="text-gray-500">{{ $speaker->company }}</span>
-                        @elseif ($speaker->company)
                         @endif
                     </h1>
                     <p class="text-gray-600 mb-4">{{ $speaker->industry ?? '' }}</p>
@@ -124,6 +128,13 @@
             <!-- Action Buttons -->
             <div class="mt-8 flex justify-end space-x-4">
                 @if(Auth::user() && Auth::user()->isAdmin())
+                    <form action="{{ route('speakers.send-update-link', $speaker) }}" method="POST" class="inline">
+                        @csrf
+                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded">
+                            Send Update Link
+                        </button>
+                    </form>
+                
                     <a href="{{ route('speakers.edit', $speaker) }}"
                         class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
                         Edit Profile

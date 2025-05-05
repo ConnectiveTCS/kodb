@@ -1,4 +1,6 @@
-<form action="{{ route('speakers.store') }}" enctype="multipart/form-data" class="flex flex-col items-center justify-center mt-4">
+<form action="{{ route('speakers.store') }}" method="POST" enctype="multipart/form-data" class="flex flex-col items-center justify-center mt-4">
+    @csrf
+    @method('POST')
     <h1 class="text-2xl font-bold text-gray-800 mb-4">Speaker Registration</h1>
     <p class="text-gray-600 mb-4">Please fill out the form below to register as a speaker.</p>
     <div class="grid grid-cols-4 gap-2 w-3/4 mx-auto border border-gray-300 rounded-md p-4 shadow-md mt-4 bg-white">
@@ -34,7 +36,7 @@
         </div>
         <div class="flex flex-col mb-4">
             <label for="industry" class="text-sm font-medium text-gray-700">Industry</label>
-            <input type="url" id="industry" name="industry" class="border border-gray-300 rounded-md p-2">
+            <input type="text" id="industry" name="industry" class="border border-gray-300 rounded-md p-2">
         </div>
         <div class="flex flex-col mb-4 col-span-4">
             <label for="bio" class="text-sm font-medium text-gray-700">Bio</label>

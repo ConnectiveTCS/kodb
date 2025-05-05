@@ -21,6 +21,8 @@ class Speaker extends Model
         'bio',
         'industry',
         'cv_resume',
+        'update_token',
+        'token_expires_at',
     ];
     public function user()
     {

@@ -31,7 +31,18 @@ Route::middleware('auth')->group(function () {
 
     // Add export route
     Route::get('/speakers/export', [App\Http\Controllers\SpeakerController::class, 'export'])->name('speakers.export');
+
+    // Send update link to speaker
+    Route::post('/speakers/{speaker}/send-update-link', [SpeakerController::class, 'sendUpdateLink'])
+        ->name('speakers.send-update-link');
 });
 
+// Public routes for speaker self-update
+Route::get('/speakers/edit/{token}', [SpeakerController::class, 'editWithToken'])
+    ->name('speakers.edit-with-token');
+Route::post('/speakers/update/{token}', [SpeakerController::class, 'updateWithToken'])
+    ->name('speakers.update-with-token');
+Route::get('/speakers/thank-you', [SpeakerController::class, 'thankYou'])
+    ->name('speakers.thank-you');
 
 require __DIR__ . '/auth.php';

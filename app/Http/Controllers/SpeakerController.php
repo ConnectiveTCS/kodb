@@ -6,6 +6,10 @@ use App\Models\Speaker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use App\Mail\SpeakerUpdateInvitation;
+use Carbon\Carbon;
 
 class SpeakerController extends Controller
 {
@@ -112,6 +116,8 @@ class SpeakerController extends Controller
 
         //create speaker
         Speaker::create($request->all());
+
+        // dd($request->all());
 
         return redirect()->route('speakers.index')->with('success', 'Speaker created successfully.');
     }
@@ -599,5 +605,124 @@ class SpeakerController extends Controller
         return response()->download($tempFilePath, $filename, [
             'Content-Type' => 'text/csv',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Generate update token and send email to speaker
+     *
+     * @param int $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function sendUpdateLink($id)
+    {
+        $speaker = Speaker::findOrFail($id);
+
+        // Generate a random token
+        $token = Str::random(64);
+
+        // Set token expiration (48 hours from now)
+        $expiresAt = Carbon::now()->addHours(48);
+
+        // Save token to speaker record
+        $speaker->update([
+            'update_token' => $token,
+            'token_expires_at' => $expiresAt
+        ]);
+
+        // Send email with the token
+        Mail::to($speaker->email)->send(new SpeakerUpdateInvitation($speaker, $token));
+
+        return redirect()->route('speakers.show', $speaker)
+            ->with('success', 'Update link has been sent to ' . $speaker->email);
+    }
+
+    /**
+     * Show the form for editing speaker details with a token
+     *
+     * @param Request $request
+     * @param string $token
+     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+     */
+    public function editWithToken(Request $request, $token)
+    {
+        $speaker = Speaker::where('update_token', $token)
+            ->where('token_expires_at', '>', now())
+            ->first();
+
+        if (!$speaker) {
+            return redirect()->route('speakers.index')
+                ->with('error', 'Invalid or expired token. Please request a new update link.');
+        }
+
+        return view('speakers.edit-public', compact('speaker', 'token'));
+    }
+
+    /**
+     * Update speaker details with a token
+     *
+     * @param Request $request
+     * @param string $token
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function updateWithToken(Request $request, $token)
+    {
+        $speaker = Speaker::where('update_token', $token)
+            ->where('token_expires_at', '>', now())
+            ->first();
+
+        if (!$speaker) {
+            return redirect()->route('speakers.index')
+                ->with('error', 'Invalid or expired token. Please request a new update link.');
+        }
+
+        // Validate request
+        $request->validate([
+            'first_name' => 'required',
+            'last_name' => 'required',
+            'email' => 'required|email|unique:speakers,email,' . $speaker->id,
+            'phone' => 'nullable',
+            'company' => 'nullable',
+            'job_title' => 'nullable',
+            'bio' => 'nullable',
+            'industry' => 'nullable',
+            'cv_resume' => 'nullable|mimes:pdf,doc,docx|max:2048',
+        ]);
+
+        // Handle file uploads
+        if ($request->hasFile('photo')) {
+            $file = $request->file('photo');
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('images/speakers'), $filename);
+            $request->merge(['photo' => $filename]);
+        }
+
+        if ($request->hasFile('cv_resume')) {
+            $file = $request->file('cv_resume');
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('uploads/cv'), $filename);
+            $request->merge(['cv_resume' => $filename]);
+        }
+
+        // Update speaker details
+        $speaker->update($request->all());
+
+        // Clear token after successful update
+        $speaker->update([
+            'update_token' => null,
+            'token_expires_at' => null
+        ]);
+
+        return redirect()->route('speakers.thank-you')
+            ->with('success', 'Your profile has been updated successfully.');
+    }
+
+    /**
+     * Display thank you page after successful update
+     *
+     * @return \Illuminate\View\View
+     */
+    public function thankYou()
+    {
+        return view('speakers.thank-you');
     }
 }
