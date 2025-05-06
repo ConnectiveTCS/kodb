@@ -10,13 +10,23 @@ use Illuminate\Support\Facades\Log;
 
 class SpeakerBioController extends Controller
 {
+    /**
+     * Generate speaker bio using external AI service
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function generateBio(Request $request)
     {
         try {
-            $data = $request->validate([
+            // Simple debug check
+            Log::info("Bio generation request received");
+
+            // Validate incoming request data
+            $validated = $request->validate([
                 'full_name' => 'required|string',
-                'job_title' => 'nullable|string',
-                'workplace' => 'nullable|string',
+                'job_title' => 'required|string',
+                'workplace' => 'required|string',
                 'expertise' => 'required|string',
                 'experience_years' => 'required|numeric',
                 'topics' => 'required|string',
@@ -26,61 +36,60 @@ class SpeakerBioController extends Controller
                 'fun_fact' => 'nullable|string',
             ]);
 
-            $prompt = "You are a helpful assistant writing a first-person professional speaker bio for Knowledge Oman. Based on the following data, generate only the bio — no other text:\n\n";
-            foreach ($data as $key => $value) {
-                $prompt .= ucfirst(str_replace('_', ' ', $key)) . ": $value\n";
-            }
+            // Format the body as JSON string
+            $jsonBody = json_encode($validated);
+            Log::info("Sending request to n8n webhook");
 
-            $openaiKey = env('OPENAI_API_KEY');
-            if (!$openaiKey) {
-                Log::error('OpenAI API key is not set');
-                return response()->json(['error' => 'OpenAI API key is not configured'], 500);
-            }
+            // Use Laravel's HTTP client with more direct error handling
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json'
+            ])->withBody($jsonBody, 'application/json')
+                ->get('https://kyle146.app.n8n.cloud/webhook-test/1dfe3e8a-e3e4-40d5-8375-69da944393de');
 
-            $response = Http::withToken($openaiKey)
-                ->timeout(30)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4',
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'You are a helpful assistant that writes first-person speaker bios.'],
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.7,
-                ]);
-
-            if ($response->failed()) {
-                Log::error('OpenAI API request failed', [
-                    'status' => $response->status(),
-                    'response' => $response->json() ?: $response->body(),
-                ]);
-                return response()->json(['error' => 'Failed to generate bio: ' . ($response->json()['error']['message'] ?? 'API error')], 500);
-            }
-
+            // Parse the JSON response
             $responseData = $response->json();
-            if (!isset($responseData['choices'][0]['message']['content'])) {
-                Log::error('Invalid response format from OpenAI', ['response' => $responseData]);
-                return response()->json(['error' => 'Invalid response from OpenAI'], 500);
+
+            // Log the response
+            Log::info("Response status: " . $response->status());
+            Log::info("Response body: " . json_encode($responseData));
+
+            if ($response->successful()) {
+                // Extract the bio text from the "output" field
+                if (isset($responseData['output'])) {
+                    return response()->json([
+                        'success' => true,
+                        'bio' => $responseData['output']
+                    ]);
+                } else {
+                    Log::error("Missing 'output' field in API response");
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Invalid API response format: missing output field'
+                    ], 500);
+                }
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'External API error: ' . $response->status()
+                ], 500);
             }
-
-            $generatedBio = $responseData['choices'][0]['message']['content'];
-
-            // Only store the bio if the user is authenticated
-            if (Auth::check()) {
-                SpeakerBio::create([
-                    'user_id' => Auth::id(),
-                    'bio' => $generatedBio,
-                ]);
-            }
-
-            return response()->json([
-                'bio' => $generatedBio,
-            ]);
         } catch (\Exception $e) {
-            Log::error('Error generating bio: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
+            Log::error("Bio generation error: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'An error occurred: ' . $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * Simple endpoint to check API connectivity
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function ping()
+    {
+        Log::info('API ping received');
+        return response('API is available', 200);
     }
 }

@@ -33,7 +33,7 @@
                             <h1 class="text-2xl font-bold text-gray-800 mb-4">Update Your Profile</h1>
                             <p class="text-gray-600 mb-4">Please update your speaker information below.</p>
                             <div class="grid grid-cols-4 gap-2 w-3/4 mx-auto border border-gray-300 rounded-md p-4 shadow-md mt-4 bg-white">
-                                <img src="{{ $speaker->photo ? asset('images/speakers/' . $speaker->photo) : 'https://robohash.org/' . $speaker->first_name }}" alt="{{ $speaker->first_name }}" id="profile_image_preview" class="w-32 h-32 rounded-full mb-4 col-span-4 object-cover object-top">
+                                <img src="{{ $speaker->photo ? (Str::startsWith($speaker->photo, 'http') ? $speaker->photo : asset('images/speakers/' . $speaker->photo)) : 'https://robohash.org/' . $speaker->first_name }}" alt="{{ $speaker->first_name }}" id="profile_image_preview" class="w-32 h-32 rounded-full mb-4 col-span-4 object-cover object-top">
 
                                 <div class="flex flex-col mb-4 col-span-4">
                                     <label for="photo" class="text-sm font-medium text-gray-700">Profile Image</label>
@@ -222,12 +222,14 @@
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
             
-            // Log the target endpoint for debugging
+            // Enhanced logging for debugging
+            console.log('Form data to be submitted:', data);
             console.log('Sending request to: /api/generate-bio');
 
             try {
                 // First check if the API is accessible
                 try {
+                    console.log('Checking API connectivity...');
                     const pingResponse = await fetch('/api/ping', { 
                         method: 'HEAD',
                         headers: {
@@ -235,6 +237,7 @@
                         }
                     });
                     
+                    console.log('Ping response status:', pingResponse.status);
                     if (!pingResponse.ok) {
                         throw new Error(`API connection check failed with status: ${pingResponse.status}`);
                     }
@@ -243,6 +246,7 @@
                     // Continue anyway, but log the error
                 }
                 
+                console.log('Sending bio generation request...');
                 const response = await fetch('/api/generate-bio', {
                     method: 'POST',
                     headers: { 
@@ -255,7 +259,10 @@
                     signal: AbortSignal.timeout(60000) // 60 second timeout
                 });
 
+                console.log('Response status:', response.status);
                 const result = await response.json();
+                console.log('Response data:', result);
+                
                 bioOutput.classList.remove('hidden');
                 
                 if (response.ok) {
